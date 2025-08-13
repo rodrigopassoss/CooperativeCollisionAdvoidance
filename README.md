@@ -1,92 +1,96 @@
-# Cooperative Collision Avoidance – Parte Teórica
+# Cooperative Collision Avoidance
 
-Este repositório implementa, em MATLAB, um método de **evitação cooperativa de colisões** baseado em **Optimal Reciprocal Collision Avoidance (ORCA)** com restrições adicionais para velocidades holonômicas.
+Este repositório apresenta uma implementação em MATLAB de um algoritmo de **Prevenção Cooperativa de Colisão** para robôs móveis, baseada em restrições de velocidades lineares e angulares, formuladas como um problema de otimização.
 
-O foco desta descrição é explicar o funcionamento teórico por trás da implementação, sem entrar em detalhes específicos do código.
+## Visão Geral
 
----
+A abordagem baseia-se na definição de uma região de velocidades admissíveis para cada robô, levando em consideração:
 
-## 1. Conceito Geral
+- **Capacidade dinâmica do robô** (limites de velocidade)
+- **Restrições de não-colisão** em relação a outros robôs e obstáculos
+- **Orientação atual** do robô para definição da região de velocidade possível
 
-O objetivo do método é calcular, a cada instante, a **velocidade ótima** para um agente móvel que:
-
-1. **Evite colisões** com outros agentes ou obstáculos.
-2. **Respeite suas limitações cinemáticas**, como velocidade máxima.
-3. **Tente manter o rumo desejado** (velocidade preferida).
-
-O problema é formulado como uma **otimização por programação linear** sobre o espaço de velocidades.
+O objetivo é encontrar, a cada passo, a velocidade mais próxima da velocidade desejada (`v_des`), respeitando todas as restrições.
 
 ---
 
-## 2. Espaço de Velocidades e Restrições ORCA
+## Formulação Teórica
 
-Cada agente possui:
+O problema é formulado como uma **Programação Linear (PL)**:
 
-- **Velocidade atual**: \( \mathbf{v}_i \)  
-- **Velocidade preferida**: \( \mathbf{v}_i^{\text{pref}} \)  
-- **Velocidade máxima holonômica**: \( v_{\text{max}} \)  
+Minimizar:
+$$
+\| v - v_{\text{des}} \|^2
+$$
 
-A teoria do ORCA define, para cada par de agentes \( i \) e \( j \), um **meio-plano viável** no espaço de velocidades \((v_x, v_y)\), de forma que, se \( \mathbf{v}_i \) estiver nesse meio-plano, não haverá colisão dentro de um horizonte de tempo \( \tau \).
+Sujeito a:
+1. **Restrição dinâmica (velocidade máxima holonômica)**:
+$$
+- v_{\max} \leq v_x \leq v_{\max}
+$$
+$$
+- v_{\max} \leq v_y \leq v_{\max}
+$$
 
-Cada restrição é definida pela equação:
+2. **Restrição de região admissível $P_{AHV}$**:
 
-\[
-\mathbf{n}_{ij} \cdot (\mathbf{v} - \mathbf{v}_{ij}^*) \geq 0
-\]
+A região $P_{AHV}$ é poligonal e definida com base nas velocidades relativas e nas zonas seguras de operação, levando em conta a orientação do robô.
 
+3. **Restrição cooperativa de colisão**:
+
+Para cada par de robôs $i$ e $j$, define-se a condição para evitar colisão:
+$$
+(n_{ij})^\top (v_i - v_j) \geq \tau_{ij}
+$$
 onde:
-- \( \mathbf{n}_{ij} \) é o vetor normal à fronteira da região de não colisão.
-- \( \mathbf{v}_{ij}^* \) é o ponto da fronteira mais próximo da velocidade relativa atual.
-
-O conjunto de todas as restrições para um agente forma um **polígono convexo** de velocidades seguras.
+- $n_{ij}$ é o vetor normal à fronteira de colisão
+- $\tau_{ij}$ é o termo de margem de segurança
 
 ---
 
-## 3. Região \( P_{AHV} \)
+## Região de Velocidades Admissíveis
 
-A implementação define \( P_{AHV} \) como a **interseção** de:
+Em vez de usar um limite circular para a magnitude da velocidade, este trabalho define a região como um **quadrado rotacionado** com lado $2v_{\max}$, alinhado com o referencial do robô.  
+Isto permite limitar separadamente as velocidades longitudinal ($v_x$) e lateral ($v_y$) e aplicar uma rotação correspondente à orientação atual $\theta$ do robô.
 
-1. Todas as **regiões ORCA** obtidas com outros agentes.
-2. O **disco de velocidades possíveis** limitado por \( v_{\text{max}} \):
+A transformação para o referencial global é dada por:
+$$
+\begin{bmatrix}
+v_x^{g} \\
+v_y^{g}
+\end{bmatrix}
+=
+R(\theta)
+\begin{bmatrix}
+v_x^{r} \\
+v_y^{r}
+\end{bmatrix}
+$$
 
-\[
-\sqrt{v_x^2 + v_y^2} \leq v_{\text{max}}
-\]
-
-O resultado é um **polígono convexo** no espaço \((v_x, v_y)\) que representa todas as velocidades viáveis.
-
----
-
-## 4. Formulação como Programação Linear
-
-O problema é formulado como:
-
-\[
-\min_{\mathbf{v} \in P_{AHV}} \|\mathbf{v} - \mathbf{v}_i^{\text{pref}}\|
-\]
-
-Ou seja:
-- **Variáveis**: \( v_x, v_y \)
-- **Restrições**: Inequações lineares definindo \( P_{AHV} \) + restrição de norma para \( v_{\text{max}} \)
-- **Objetivo**: Escolher a velocidade viável mais próxima da velocidade preferida.
-
-Como a norma euclidiana não é linear, pode-se aproximá-la usando normas \( L_1 \) ou \( L_\infty \) para resolver via programação linear clássica.
+Com:
+$$
+R(\theta) =
+\begin{bmatrix}
+\cos\theta & -\sin\theta \\
+\sin\theta & \cos\theta
+\end{bmatrix}
+$$
 
 ---
 
-## 5. Interpretação Geométrica
+## Resumo do Processo
 
-1. **ORCA** → Cada agente define um conjunto de **meios-planos**.
-2. **Interseção** desses meios-planos → região convexa de segurança.
-3. **Corte pelo disco de \( v_{\text{max}} \)** → região \( P_{AHV} \).
-4. **Otimização** → Seleciona o ponto dentro de \( P_{AHV} \) mais próximo da velocidade desejada.
-
----
-
-## 6. Referências
-
-- Van den Berg, J., et al. *Reciprocal n-body collision avoidance*. Springer Tracts in Advanced Robotics, 2011.
-- Alonso-Mora, J., et al. *Optimal Reciprocal Collision Avoidance for Multiple Holonomic Robots with Acceleration Constraints*. IEEE ICRA, 2015.
+1. **Definição das restrições** (dinâmicas e de colisão)
+2. **Construção da região $P_{AHV}$** levando em conta a orientação
+3. **Formulação da Programação Linear**
+4. **Resolução usando solver de otimização**
+5. **Aplicação da velocidade resultante** no robô
 
 ---
 
+## Referências
+
+- Van den Berg, J., et al. *Reciprocal Velocity Obstacles for real-time multi-agent navigation*. IEEE ICRA, 2008.
+- Fiorini, P., Shiller, Z. *Motion Planning in Dynamic Environments Using Velocity Obstacles*. IJRR, 1998.
+
+---

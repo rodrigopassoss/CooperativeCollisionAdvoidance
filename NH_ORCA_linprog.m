@@ -76,7 +76,7 @@ function [v_new] = NH_ORCA_linprog(vA_opt,vA_pref,vA_max,thetaA,u,n,idx)
     
     % Debug
     if idx==1
-%         plot_ORCA([A_orca;A_nh],[b_orca;b_nh],x(1:2),vA_pref,idx,nB);
+        plot_ORCA([A_orca;A_nh],[b_orca;b_nh],x(1:2),vA_pref,idx,nB);
     end
 %     if idx==1, plot_ORCA([A_orca],[b_orca],x(1:2),vA_pref,idx);end
 
